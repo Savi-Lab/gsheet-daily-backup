@@ -1,6 +1,7 @@
 // backup.js
 const { google } = require("googleapis");
 
+// Spreadsheet ID (env বা default)
 const DEFAULT_SPREADSHEET_ID =
   process.env.SPREADSHEET_ID ||
   "1LdByKgvhMdvQm1jwqP0m5EpOUr-l2DBand_45v3-1c8";
@@ -16,6 +17,7 @@ const SHEET_NAMES = [
   "Hourly Target Ach",
 ];
 
+// Timestamp function
 function timestampForName() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -24,6 +26,7 @@ function timestampForName() {
   )}_${pad(d.getHours())}${pad(d.getMinutes())}`;
 }
 
+// Check if sheet exists
 async function sheetExists(sheetsApi, spreadsheetId, sheetName) {
   const res = await sheetsApi.spreadsheets.get({
     spreadsheetId,
@@ -32,6 +35,7 @@ async function sheetExists(sheetsApi, spreadsheetId, sheetName) {
   return res.data.sheets?.some((s) => s.properties?.title === sheetName);
 }
 
+// Ensure unique backup title
 async function ensureUniqueTitle(sheetsApi, spreadsheetId, baseTitle) {
   let title = baseTitle.substring(0, 100);
   let i = 1;
@@ -45,8 +49,11 @@ async function ensureUniqueTitle(sheetsApi, spreadsheetId, baseTitle) {
   return title;
 }
 
+// Main backup function
 async function runBackup() {
   const spreadsheetId = DEFAULT_SPREADSHEET_ID;
+
+  console.log("📌 DEBUG: Spreadsheet ID:", spreadsheetId);
 
   if (!process.env.GOOGLE_SERVICE_ACCOUNT) {
     console.error("❌ GOOGLE_SERVICE_ACCOUNT environment variable not set.");
@@ -62,9 +69,9 @@ async function runBackup() {
 
   const sheets = google.sheets({ version: "v4", auth });
   const ts = timestampForName();
-  console.log("📂 Backup started:", ts, "spreadsheet:", spreadsheetId);
+  console.log("📂 Backup started:", ts);
 
-  // সব শীটের মেটাডাটা একবারেই নিয়ে আসা – এতে বারবার API কল কম হয়
+  // Fetch all sheets metadata once
   const meta = await sheets.spreadsheets.get({
     spreadsheetId,
     includeGridData: false,
@@ -73,9 +80,8 @@ async function runBackup() {
 
   for (const sheetName of SHEET_NAMES) {
     try {
-      const src = allSheets.find(
-        (s) => s.properties?.title === sheetName
-      );
+      console.log("➡️ Checking sheet:", sheetName);
+      const src = allSheets.find((s) => s.properties?.title === sheetName);
       if (!src) {
         console.warn(`⚠️ Sheet not found: "${sheetName}" — skipping`);
         continue;
@@ -89,6 +95,7 @@ async function runBackup() {
         baseBackupTitle
       );
 
+      console.log(`🔹 Duplicating "${sheetName}" as "${backupTitle}" ...`);
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -106,14 +113,14 @@ async function runBackup() {
 
       console.log(`✅ Snapshot created: ${backupTitle}`);
     } catch (err) {
-      console.error(`❌ Error while backing up "${sheetName}":`, err.message);
+      console.error(`❌ Error while backing up "${sheetName}":`, err);
     }
   }
 
   console.log("🏁 Backup finished:", new Date().toISOString());
 }
 
-// CLI থেকে চালানো হলে
+// CLI থেকে run করা হলে
 if (require.main === module) {
   runBackup().catch((err) => {
     console.error("Fatal error:", err);

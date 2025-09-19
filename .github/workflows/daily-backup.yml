@@ -2,7 +2,7 @@ name: Daily Google Sheets Backup
 
 on:
   schedule:
-    - cron: '0 10 * * *'   # Runs daily at 16:00 Asia/Dhaka (UTC+6 -> 10:00 UTC)
+    - cron: '55 17 * * *'   # Runs daily at 23:55 Asia/Dhaka (UTC+6 -> 17:55 UTC)
   workflow_dispatch:        # Manual trigger possible
 
 jobs:
@@ -27,5 +27,5 @@ jobs:
       - name: Run backup script
         env:
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}  # Fixed line
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         run: node backup.js
