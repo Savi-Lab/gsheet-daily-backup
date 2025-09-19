@@ -1,0 +1,11 @@
+{
+  "name": "gsheet-daily-backup",
+  "version": "1.0.0",
+  "main": "backup.js",
+  "scripts": {
+    "start": "node backup.js"
+  },
+  "dependencies": {
+    "googleapis": "^121.0.0"
+  }
+}
