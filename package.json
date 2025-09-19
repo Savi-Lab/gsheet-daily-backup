@@ -7,5 +7,17 @@
   },
   "dependencies": {
     "googleapis": "^121.0.0"
-  }
+  },
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Savi-Lab/gsheet-daily-backup.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Savi-Lab/gsheet-daily-backup/issues"
+  },
+  "homepage": "https://github.com/Savi-Lab/gsheet-daily-backup#readme"
 }

@@ -1,9 +1,14 @@
 // backup.js
-// CommonJS (node >= 16/18/20) -- Google Sheets API দিয়ে sheet snapshot (values only)
+// CommonJS (node >= 16/18/20) -- Google Sheets API দিয়ে পুরো snapshot (values + formatting + formulas)
 
+// Google API
 const { google } = require("googleapis");
 
-const DEFAULT_SPREADSHEET_ID = process.env.SPREADSHEET_ID || "1LdByKgvhMdvQm1jwqP0m5EpOUr-l2DBand_45v3-1c8"; // তোমার ID এখানে থাকতে পারে
+const DEFAULT_SPREADSHEET_ID =
+  process.env.SPREADSHEET_ID ||
+  "1LdByKgvhMdvQm1jwqP0m5EpOUr-l2DBand_45v3-1c8"; // এখানে তোমার spreadsheet ID দিতে পারো
+
+// যে শীটগুলো snapshot নিতে হবে
 const SHEET_NAMES = [
   "Hourly Order Update",
   "Gold Team (Live)",
@@ -14,14 +19,8 @@ const SHEET_NAMES = [
   "Hourly Target Ach"
 ];
 
-function escapeSheetName(name) {
-  // A1 notation এ শিট নামের জন্য single quotes ব্যবহার ও single-quote escape
-  return `'${name.replace(/'/g, "''")}'`;
-}
-
 function timestampForName() {
   const d = new Date();
-  // YYYY-MM-DD_HHMM (local ISO-ish)
   const pad = n => String(n).padStart(2, "0");
   const Y = d.getFullYear();
   const M = pad(d.getMonth() + 1);
@@ -40,7 +39,6 @@ async function sheetExists(sheetsApi, spreadsheetId, sheetName) {
     });
     return Array.isArray(r.data.sheets) && r.data.sheets.length > 0;
   } catch (err) {
-    // If API returns 400 for missing range, treat as not exists
     return false;
   }
 }
@@ -81,7 +79,7 @@ async function runBackup() {
     try {
       console.log("Processing sheet:", sheetName);
 
-      // Check source sheet exists
+      // get metadata (to retrieve sheetId)
       const meta = await sheets.spreadsheets.get({
         spreadsheetId,
         ranges: [sheetName],
@@ -93,55 +91,38 @@ async function runBackup() {
         continue;
       }
 
-      // Get values from the source sheet (this returns used-range values)
-      const escapedSource = escapeSheetName(sheetName);
-      let valuesRes;
-      try {
-        valuesRes = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: `${escapedSource}`
-        });
-      } catch (err) {
-        console.warn(`Could not get values for "${sheetName}". Skipping.`, err.message);
-        continue;
-      }
-
-      const values = valuesRes.data.values || []; // array of rows
+      const sheetId = meta.data.sheets[0].properties.sheetId;
 
       // Prepare backup sheet title (unique)
       const baseBackupTitle = `${sheetName}_Backup_${ts}`;
-      const backupTitle = await ensureUniqueTitle(sheets, spreadsheetId, baseBackupTitle);
+      const backupTitle = await ensureUniqueTitle(
+        sheets,
+        spreadsheetId,
+        baseBackupTitle
+      );
 
-      // Create new sheet
+      // Duplicate with formatting + formulas
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
           requests: [
             {
-              addSheet: {
-                properties: {
-                  title: backupTitle
-                }
+              duplicateSheet: {
+                sourceSheetId: sheetId,
+                insertSheetIndex: 0,
+                newSheetName: backupTitle
               }
             }
           ]
         }
       });
 
-      // Write values (if any)
-      if (values.length > 0) {
-        const escapedBackup = escapeSheetName(backupTitle);
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: `${escapedBackup}!A1`,
-          valueInputOption: "RAW",
-          requestBody: { values }
-        });
-      }
-
-      console.log(`✅ Backup created: ${backupTitle} (rows: ${values.length})`);
+      console.log(`✅ Snapshot created: ${backupTitle}`);
     } catch (err) {
-      console.error(`❌ Error while backing up "${sheetName}":`, err.message || err);
+      console.error(
+        `❌ Error while backing up "${sheetName}":`,
+        err.message || err
+      );
     }
   }
 
