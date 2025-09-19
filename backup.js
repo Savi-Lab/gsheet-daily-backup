@@ -1,12 +1,9 @@
 // backup.js
-// CommonJS (node >= 16/18/20) -- Google Sheets API দিয়ে পুরো snapshot (values + formatting + formulas)
-
-// Google API
 const { google } = require("googleapis");
 
 const DEFAULT_SPREADSHEET_ID =
   process.env.SPREADSHEET_ID ||
-  "1LdByKgvhMdvQm1jwqP0m5EpOUr-l2DBand_45v3-1c8"; // এখানে তোমার spreadsheet ID দিতে পারো
+  "1LdByKgvhMdvQm1jwqP0m5EpOUr-l2DBand_45v3-1c8";
 
 // যে শীটগুলো snapshot নিতে হবে
 const SHEET_NAMES = [
@@ -16,31 +13,23 @@ const SHEET_NAMES = [
   "Live-Bronze",
   "Platinum Team(Live)",
   "Diamond Team (Live)",
-  "Hourly Target Ach"
+  "Hourly Target Ach",
 ];
 
 function timestampForName() {
   const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  const Y = d.getFullYear();
-  const M = pad(d.getMonth() + 1);
-  const D = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mm = pad(d.getMinutes());
-  return `${Y}-${M}-${D}_${hh}${mm}`;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+    d.getDate()
+  )}_${pad(d.getHours())}${pad(d.getMinutes())}`;
 }
 
 async function sheetExists(sheetsApi, spreadsheetId, sheetName) {
-  try {
-    const r = await sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      ranges: [sheetName],
-      includeGridData: false
-    });
-    return Array.isArray(r.data.sheets) && r.data.sheets.length > 0;
-  } catch (err) {
-    return false;
-  }
+  const res = await sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    includeGridData: false,
+  });
+  return res.data.sheets?.some((s) => s.properties?.title === sheetName);
 }
 
 async function ensureUniqueTitle(sheetsApi, spreadsheetId, baseTitle) {
@@ -58,8 +47,9 @@ async function ensureUniqueTitle(sheetsApi, spreadsheetId, baseTitle) {
 
 async function runBackup() {
   const spreadsheetId = DEFAULT_SPREADSHEET_ID;
+
   if (!process.env.GOOGLE_SERVICE_ACCOUNT) {
-    console.error("Error: GOOGLE_SERVICE_ACCOUNT environment variable not set.");
+    console.error("❌ GOOGLE_SERVICE_ACCOUNT environment variable not set.");
     process.exit(1);
   }
 
@@ -67,33 +57,31 @@ async function runBackup() {
 
   const auth = new google.auth.GoogleAuth({
     credentials: creds,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 
   const sheets = google.sheets({ version: "v4", auth });
-
   const ts = timestampForName();
-  console.log("Backup started:", ts, "spreadsheet:", spreadsheetId);
+  console.log("📂 Backup started:", ts, "spreadsheet:", spreadsheetId);
+
+  // সব শীটের মেটাডাটা একবারেই নিয়ে আসা – এতে বারবার API কল কম হয়
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    includeGridData: false,
+  });
+  const allSheets = meta.data.sheets || [];
 
   for (const sheetName of SHEET_NAMES) {
     try {
-      console.log("Processing sheet:", sheetName);
-
-      // get metadata (to retrieve sheetId)
-      const meta = await sheets.spreadsheets.get({
-        spreadsheetId,
-        ranges: [sheetName],
-        includeGridData: false
-      });
-
-      if (!meta.data.sheets || meta.data.sheets.length === 0) {
-        console.warn(`Sheet not found: "${sheetName}" — skipping`);
+      const src = allSheets.find(
+        (s) => s.properties?.title === sheetName
+      );
+      if (!src) {
+        console.warn(`⚠️ Sheet not found: "${sheetName}" — skipping`);
         continue;
       }
 
-      const sheetId = meta.data.sheets[0].properties.sheetId;
-
-      // Prepare backup sheet title (unique)
+      const sheetId = src.properties.sheetId;
       const baseBackupTitle = `${sheetName}_Backup_${ts}`;
       const backupTitle = await ensureUniqueTitle(
         sheets,
@@ -101,7 +89,6 @@ async function runBackup() {
         baseBackupTitle
       );
 
-      // Duplicate with formatting + formulas
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -110,28 +97,25 @@ async function runBackup() {
               duplicateSheet: {
                 sourceSheetId: sheetId,
                 insertSheetIndex: 0,
-                newSheetName: backupTitle
-              }
-            }
-          ]
-        }
+                newSheetName: backupTitle,
+              },
+            },
+          ],
+        },
       });
 
       console.log(`✅ Snapshot created: ${backupTitle}`);
     } catch (err) {
-      console.error(
-        `❌ Error while backing up "${sheetName}":`,
-        err.message || err
-      );
+      console.error(`❌ Error while backing up "${sheetName}":`, err.message);
     }
   }
 
-  console.log("Backup finished:", new Date().toISOString());
+  console.log("🏁 Backup finished:", new Date().toISOString());
 }
 
-// Run if executed directly
+// CLI থেকে চালানো হলে
 if (require.main === module) {
-  runBackup().catch(err => {
+  runBackup().catch((err) => {
     console.error("Fatal error:", err);
     process.exit(2);
   });
