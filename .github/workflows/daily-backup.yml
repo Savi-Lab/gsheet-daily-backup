@@ -27,4 +27,5 @@ jobs:
       - name: Run backup script
         env:
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
-          SPREADSHEET
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}  # Fixed line
+        run: node backup.js
