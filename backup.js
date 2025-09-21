@@ -1,5 +1,6 @@
 // backup.js
 const { google } = require("googleapis");
+const moment = require("moment-timezone"); // timezone package
 
 // Spreadsheet ID (env বা default)
 const DEFAULT_SPREADSHEET_ID =
@@ -17,13 +18,9 @@ const SHEET_NAMES = [
   "Hourly Target Ach",
 ];
 
-// Timestamp function
+// Timestamp function (Asia/Dhaka timezone)
 function timestampForName() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-    d.getDate()
-  )}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+  return moment().tz("Asia/Dhaka").format("YYYY-MM-DD_HHmm");
 }
 
 // Check if sheet exists
@@ -117,7 +114,7 @@ async function runBackup() {
     }
   }
 
-  console.log("🏁 Backup finished:", new Date().toISOString());
+  console.log("🏁 Backup finished:", moment().tz("Asia/Dhaka").format());
 }
 
 // CLI থেকে run করা হলে

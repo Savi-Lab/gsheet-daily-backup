@@ -2,7 +2,7 @@ name: Daily Google Sheets Backup
 
 on:
   schedule:
-    - cron: '55 17 * * *'   # Runs daily at 23:55 Asia/Dhaka (UTC+6 -> 17:55 UTC)
+    - cron: '55 17 * * *'   # Runs daily at 23:55 Asia/Dhaka (17:55 UTC)
   workflow_dispatch:        # Manual trigger possible
 
 jobs:
@@ -22,10 +22,18 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run backup script
         env:
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         run: node backup.js
+
+      - name: Commit & Push backup
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add backup/ || true
+          git commit -m "Daily backup: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || echo "No changes to commit"
+          git push
