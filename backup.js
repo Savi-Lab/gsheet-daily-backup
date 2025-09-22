@@ -15,7 +15,6 @@ const SHEET_NAMES = [
   "Live-Bronze",
   "Platinum Team(Live)",
   "Diamond Team (Live)",
-  "Hourly Target Ach",
 ];
 
 // Timestamp function (Asia/Dhaka timezone)
@@ -108,7 +107,39 @@ async function runBackup() {
         },
       });
 
-      console.log(`✅ Snapshot created: ${backupTitle}`);
+      // নতুন শীট আইডি বের করা
+      const newMeta = await sheets.spreadsheets.get({
+        spreadsheetId,
+        includeGridData: false,
+      });
+      const newSheet = newMeta.data.sheets.find(
+        (s) => s.properties.title === backupTitle
+      );
+
+      if (newSheet) {
+        // ফর্মুলা সরিয়ে শুধু ভ্যালু রেখে দেওয়া
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                copyPaste: {
+                  source: {
+                    sheetId: newSheet.properties.sheetId,
+                  },
+                  destination: {
+                    sheetId: newSheet.properties.sheetId,
+                  },
+                  pasteType: "PASTE_VALUES",
+                  pasteOrientation: "NORMAL",
+                },
+              },
+            ],
+          },
+        });
+      }
+
+      console.log(`✅ Static snapshot created: ${backupTitle}`);
     } catch (err) {
       console.error(`❌ Error while backing up "${sheetName}":`, err);
     }
